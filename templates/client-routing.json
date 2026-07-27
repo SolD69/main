@@ -1,0 +1,143 @@
+{
+  "_readme": [
+    "Клиентский конфиг Xray со split-routing: российские сервисы идут напрямую,",
+    "всё остальное — через VPN. Подходит для Nekoray, v2rayN, Furious, Hiddify",
+    "(режим импорта конфига) и для xray-core на Linux или на роутере.",
+    "Заполнить плейсхолдеры: bash scripts/06-gen-client-config.sh <имя-клиента>"
+  ],
+
+  "log": { "loglevel": "warning" },
+
+  "dns": {
+    "_comment": "Российские домены резолвим российским резолвером, чтобы CDN отдавал ближайшие узлы. Остальное — через DoH, чтобы провайдер не видел и не подменял запросы.",
+    "servers": [
+      {
+        "address": "77.88.8.8",
+        "domains": ["domain:ru", "domain:su", "domain:xn--p1ai"],
+        "skipFallback": true
+      },
+      { "address": "https://dns.google/dns-query" },
+      "1.1.1.1"
+    ],
+    "queryStrategy": "UseIPv4"
+  },
+
+  "inbounds": [
+    {
+      "tag": "socks",
+      "listen": "127.0.0.1",
+      "port": 10808,
+      "protocol": "socks",
+      "settings": { "udp": true },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": ["http", "tls", "quic"],
+        "routeOnly": true
+      }
+    },
+    {
+      "tag": "http",
+      "listen": "127.0.0.1",
+      "port": 10809,
+      "protocol": "http",
+      "sniffing": {
+        "enabled": true,
+        "destOverride": ["http", "tls", "quic"],
+        "routeOnly": true
+      }
+    }
+  ],
+
+  "outbounds": [
+    {
+      "_comment": "Первый outbound — маршрут по умолчанию, то есть весь трафик, не затронутый правилами.",
+      "tag": "proxy",
+      "protocol": "vless",
+      "settings": {
+        "vnext": [
+          {
+            "address": "__SERVER_IP__",
+            "port": 443,
+            "users": [
+              {
+                "id": "__UUID__",
+                "encryption": "none",
+                "flow": "xtls-rprx-vision"
+              }
+            ]
+          }
+        ]
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "reality",
+        "realitySettings": {
+          "serverName": "__SNI__",
+          "fingerprint": "chrome",
+          "publicKey": "__PUBLIC_KEY__",
+          "shortId": "__SHORT_ID__",
+          "spiderX": "/"
+        }
+      }
+    },
+    { "tag": "direct", "protocol": "freedom", "settings": { "domainStrategy": "UseIPv4" } },
+    { "tag": "block",  "protocol": "blackhole" }
+  ],
+
+  "routing": {
+    "domainStrategy": "IPIfNonMatch",
+    "rules": [
+      {
+        "_comment": "Локальная сеть и служебные адреса — мимо VPN.",
+        "type": "field",
+        "ip": ["geoip:private"],
+        "outboundTag": "direct"
+      },
+      {
+        "_comment": "Российский резолвер должен опрашиваться напрямую.",
+        "type": "field",
+        "ip": ["77.88.8.8", "77.88.8.1"],
+        "outboundTag": "direct"
+      },
+      {
+        "_comment": "Российские домены: госуслуги, банки, маркетплейсы, соцсети и их CDN. Эти сервисы ограничивают или капчат зарубежные IP, поэтому идут напрямую.",
+        "type": "field",
+        "domain": [
+          "domain:ru",
+          "domain:su",
+          "domain:xn--p1ai",
+          "domain:vk.com",
+          "domain:vk.me",
+          "domain:vkuser.net",
+          "domain:userapi.com",
+          "domain:vk-cdn.net",
+          "domain:mycdn.me",
+          "domain:yandex.net",
+          "domain:yastatic.net",
+          "domain:sberbank.com",
+          "domain:kaspersky.com"
+        ],
+        "outboundTag": "direct"
+      },
+      {
+        "_comment": "Российские IP-диапазоны — подстраховка для доменов вне списка выше.",
+        "type": "field",
+        "ip": ["geoip:ru"],
+        "outboundTag": "direct"
+      },
+      {
+        "_comment": "QUIC блокируем: браузеры сами откатятся на TCP, а UDP через прокси работает хуже и заметнее для DPI.",
+        "type": "field",
+        "network": "udp",
+        "port": 443,
+        "outboundTag": "block"
+      },
+      {
+        "_comment": "BitTorrent мимо сервера: абузы от правообладателей стоят аренды.",
+        "type": "field",
+        "protocol": ["bittorrent"],
+        "outboundTag": "direct"
+      }
+    ]
+  }
+}

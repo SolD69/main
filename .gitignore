@@ -1,0 +1,6 @@
+# Никогда не коммитить приватные ключи и конфиги клиентов
+*.key
+*.conf
+reality.env
+xray-*.json
+!templates/*.json
