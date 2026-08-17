@@ -67,10 +67,27 @@ log "Маскировка под: $DEST"
 # --- Генерация ключей -------------------------------------------------------
 log "Генерация ключевой пары X25519"
 keypair=$(xray x25519)
-# Формат вывода менялся между версиями Xray, поддерживаем оба варианта.
+
+# Подписи в выводе менялись от версии к версии: «Private key/Public key»,
+# затем «PrivateKey/Password», в 26.x снова иначе. Сначала пробуем известные
+# варианты, а если не совпало — берём два первых токена base64url длиной
+# ровно 43 символа: столько занимает ключ X25519 в любом из форматов.
+# Ограничение по длине заодно отсекает пост-квантовые ключи, которые длиннее.
 PRIVATE_KEY=$(sed -n -e 's/^[Pp]rivate[ ]*[Kk]ey:[[:space:]]*//p' -e 's/^PrivateKey:[[:space:]]*//p' <<<"$keypair" | head -n1)
 PUBLIC_KEY=$(sed -n -e 's/^[Pp]ublic[ ]*[Kk]ey:[[:space:]]*//p' -e 's/^Password:[[:space:]]*//p' <<<"$keypair" | head -n1)
-[[ -n $PRIVATE_KEY && -n $PUBLIC_KEY ]] || die "Не удалось разобрать вывод 'xray x25519'"
+
+if [[ -z $PRIVATE_KEY || -z $PUBLIC_KEY ]]; then
+    mapfile -t parsed_keys < <(
+        grep -oP '(?<![A-Za-z0-9_-])[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])' <<<"$keypair"
+    )
+    PRIVATE_KEY=${parsed_keys[0]:-}
+    PUBLIC_KEY=${parsed_keys[1]:-}
+fi
+
+[[ -n $PRIVATE_KEY && -n $PUBLIC_KEY ]] || die "Не удалось разобрать вывод 'xray x25519'.
+    Вывод команды был такой:
+${keypair}
+    Покажите его — поправлю разбор."
 
 SHORT_ID=$(openssl rand -hex 8)
 CLIENT_UUID=$(xray uuid)
