@@ -41,9 +41,7 @@ if command -v xray >/dev/null; then
     log "Xray уже установлен: $(xray version | head -n1)"
 else
     log "Установка Xray-core"
-    bash -c "$(curl -fsSL https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" \
-        @ install >/dev/null
-    command -v xray >/dev/null || die "Установка Xray не удалась"
+    install_xray_core
     log "Установлен: $(xray version | head -n1)"
 fi
 

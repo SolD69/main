@@ -19,7 +19,7 @@ cp -a "$XRAY_CONFIG" "$backup"
 log "Конфиг сохранён в ${backup}"
 
 log "Загрузка свежей версии"
-bash -c "$(curl -fsSL https://github.com/XTLS/Xray-install/raw/main/install-release.sh)" @ install >/dev/null
+install_xray_core
 
 after=$(xray version | head -n1)
 log "Версия после обновления: ${after}"

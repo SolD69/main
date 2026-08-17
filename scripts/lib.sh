@@ -57,6 +57,46 @@ print_qr() {
     fi
 }
 
+# Официальный установщик Xray. Канонический адрес на github.com отдаёт редирект
+# на raw.githubusercontent.com, который местами обрывается или отвечает 404,
+# поэтому зеркала перебираются по очереди. Скачанный скрипт кладётся в $1.
+XRAY_INSTALLER_URLS=(
+    https://raw.githubusercontent.com/XTLS/Xray-install/main/install-release.sh
+    https://raw.githubusercontent.com/XTLS/Xray-install/master/install-release.sh
+    https://github.com/XTLS/Xray-install/raw/main/install-release.sh
+)
+
+fetch_xray_installer() {
+    local tmp=$1 url
+    for url in "${XRAY_INSTALLER_URLS[@]}"; do
+        printf '    %-70s ' "${url#https://}" >&2
+        if curl -fsSL --max-time 60 -o "$tmp" "$url" && [[ -s $tmp ]]; then
+            printf 'ok\n' >&2
+            return 0
+        fi
+        printf 'недоступен\n' >&2
+    done
+    return 1
+}
+
+# Скачать и выполнить установщик. Аргумент после имени файла — команда
+# установщика; в документированной форме `bash -c "..." @ install` символ «@»
+# лишь занимает $0, поэтому при запуске из файла он не нужен.
+install_xray_core() {
+    local installer
+    installer=$(mktemp)
+    if ! fetch_xray_installer "$installer"; then
+        rm -f "$installer"
+        die "Не удалось скачать установщик Xray ни с одного зеркала.
+    Проверьте доступ к GitHub с сервера:
+        curl -sI https://raw.githubusercontent.com"
+    fi
+    bash "$installer" install >/dev/null || warn "Установщик вернул ошибку, проверяю результат"
+    rm -f "$installer"
+    command -v xray >/dev/null \
+        || die "Xray не установился. Запустите установщик вручную, чтобы увидеть вывод."
+}
+
 restart_xray() {
     if ! xray run -test -config "$XRAY_CONFIG" >/dev/null 2>&1; then
         die "Конфиг $XRAY_CONFIG не прошёл проверку, перезапуск отменён"
