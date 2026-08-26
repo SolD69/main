@@ -263,6 +263,7 @@ scripts/
 templates/
   client-routing.json     шаблон клиентского конфига
 docs/
+  runbook.md             пошаговое развёртывание с нуля и обход граблей
   protocols.md           сравнение протоколов и почему Reality
   hosting.md             провайдеры, оплата, проверка IP
   clients.md             клиенты по платформам, настройка роутера
